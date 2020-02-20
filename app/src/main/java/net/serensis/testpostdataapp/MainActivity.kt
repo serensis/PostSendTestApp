@@ -1,5 +1,6 @@
 package net.serensis.testpostdataapp
 
+import android.content.Context
 import android.os.AsyncTask
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -7,58 +8,40 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
-import java.io.IOException
-import java.io.InputStream
+import android.widget.Toast.makeText
+import java.io.*
 import java.net.HttpURLConnection
 import java.net.MalformedURLException
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
-
-    fun sendData(v: View){
-
-        var task:NetworkAsyncTask = NetworkAsyncTask()
-
-        try {
-            var sUrl:String = ""
-            sUrl = findViewById<TextView>(R.id.textView).text.toString()
-            var sParam:String = ""
-            sParam = findViewById<TextView>(R.id.textView2).text.toString()
-
-            task.execute(sUrl,sParam)
-        } catch (e: Exception) {
-            // No error
-            Log.i("TEST!!!","errr")
-            e.printStackTrace()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
     }
 
-    internal class NetworkAsyncTask() : AsyncTask<String, Void, Void>() {
+    internal class NetworkAsyncTask(applicationContext: Context) : AsyncTask<String, Void, Void>() {
 
         var sUrl = ""
         var param = ""
         var data = ""
-        
+        var context:Context? = applicationContext
+
         override fun onPostExecute(result: Void?) {
             super.onPostExecute(result)
             Log.d("!!!!!!!!!!!!!!!!!!!!!", "끝")
-        }
 
-        override fun onProgressUpdate(vararg values: Void?) {
-            super.onProgressUpdate(*values)
-            Toast.makeText(this, data, Toast.LENGTH_SHORT).show()
+            makeText(context, data, Toast.LENGTH_LONG).show()
+
         }
 
         override fun doInBackground(vararg p0: String?): Void? {
             sUrl = p0[0].toString()
             param = p0[1].toString()
-            Scanrisk(0,"test","test2", "test3", "test4")
+            var isSuccess:Boolean = Scanrisk(0,"test","test2", "test3", "test4")
+            if (isSuccess) {
+                publishProgress()
+            }
             return null
         }
 
@@ -67,11 +50,13 @@ class MainActivity : AppCompatActivity() {
                 code: String,
                 name: String,
                 reason: String,
-                version: String) {
+                version: String): Boolean {
 
 
             // 아래는 2차 난독화를 적용후 보안이벤트 로그가 정상적으로 들어오는지 확인하기 위한 로그입니다.
             Log.i("HYYYYYYCallBack", "policy=$policy, code=$code, name=$name, reason=$reason")
+
+            var success:Boolean = false
 
             var httpcon:HttpURLConnection? = null
             var url: URL? = null
@@ -89,7 +74,7 @@ class MainActivity : AppCompatActivity() {
 
                 httpcon.setRequestProperty("Accept-Charset", "UTF-8")
                 // 서버에게 웹에서 <Form>으로 값이 넘어온 것과 같은 방식으로 처리하라는 걸 알려준다
-                httpcon.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;cahrset=UTF-8")
+                httpcon.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
 
                 val buffer = StringBuffer()
 
@@ -117,19 +102,28 @@ class MainActivity : AppCompatActivity() {
                         //return
                     } else {
                         Log.i("HYYYYYYCallBack", "성공!!!!")
-                        inStream = httpcon.getInputStream()
+                        inStream = BufferedInputStream(httpcon.getInputStream())
 
-                        //in = new BufferedReader(new InputStreamReader(serverIS));
+                        val reader = BufferedReader(InputStreamReader(inStream, "UTF-8"))
+                        var cBuffer = CharArray(2048)
+                        var iReadSize: Int = 0
 
-                        val buffer = ByteArray(2048)
-                        var len = 0
-                        if (inStream != null) {
-                            len = inStream.read(buffer)
+                        var datas = StringBuilder()
+
+                        iReadSize = reader.read(cBuffer)
+
+                        while (iReadSize != -1) {
+                            datas.append(cBuffer, 0, iReadSize)
+                            iReadSize = reader.read(cBuffer)
                         }
 
-                        var inputAsString = httpcon.inputStream.bufferedReader().use { it.readText() }  // defaults to UTF-8
-                        Log.i("HYYYYYYCallBack", inputAsString)
+                        Log.i("HYYYYYYCallBack", "ddata!!! :: $datas")
 
+//                        var inputAsString = httpcon.inputStream.bufferedReader().use { it.readText() }  // defaults to UTF-8
+                        var inputAsString = datas.toString()
+                        Log.i("HYYYYYYCallBack", inputAsString)
+                        data = inputAsString
+                        success = true
                     }
 
                 } catch (e: Exception) {
@@ -152,6 +146,7 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             } finally {
                 httpcon?.disconnect()
+                return success
             }
 
             //---------------------------------------------------------------------------------------------------------------------
@@ -160,4 +155,24 @@ class MainActivity : AppCompatActivity() {
             //---------------------------------------------------------------------------------------------------------------------
         }
     }
+
+    fun sendData(v: View){
+
+        val task:NetworkAsyncTask = NetworkAsyncTask(applicationContext)
+
+        try {
+            var sUrl:String = ""
+            sUrl = findViewById<TextView>(R.id.textView).text.toString()
+            var sParam:String = ""
+            sParam = findViewById<TextView>(R.id.textView2).text.toString()
+
+            task.execute(sUrl,sParam)
+
+        } catch (e: Exception) {
+            // No error
+            Log.i("TEST!!!","errr")
+            e.printStackTrace()
+        }
+    }
+
 }
